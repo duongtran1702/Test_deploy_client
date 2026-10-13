@@ -25,6 +25,22 @@ export const api = {
     return res.json();
   },
 
+  cancelOrder: async (id) => {
+    const res = await fetch(`${ORDER_API_BASE}/api/orders/${id}/cancel`, {
+      method: 'PUT'
+    });
+    if (!res.ok) throw new Error('Failed to cancel order');
+    return res.json();
+  },
+
+  shipOrder: async (id) => {
+    const res = await fetch(`${ORDER_API_BASE}/api/orders/${id}/ship`, {
+      method: 'PUT'
+    });
+    if (!res.ok) throw new Error('Failed to ship order');
+    return res.json();
+  },
+
   createBatchOrders: async (count = 5, failurePercent = 0) => {
     const res = await fetch(`${ORDER_API_BASE}/api/orders/batch?count=${count}&failurePercent=${failurePercent}`, {
       method: 'POST'

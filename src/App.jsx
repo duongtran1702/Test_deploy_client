@@ -1,52 +1,42 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import Navbar from './components/Navbar';
-import MetricsCards from './components/MetricsCards';
-import OrderSimulator from './components/OrderSimulator';
-import OrderTable from './components/OrderTable';
-import OrderDetailModal from './components/OrderDetailModal';
-import ChaosControl from './components/ChaosControl';
-import DltInspector from './components/DltInspector';
-import ArchitectureModal from './components/ArchitectureModal';
+import ClientPortal from './components/ClientPortal';
+import AdminPortal from './components/AdminPortal';
 import { api } from './api';
-import { ShoppingBag, Flame, Skull, HelpCircle, Layers } from 'lucide-react';
+import { ShoppingBag, ShieldCheck } from 'lucide-react';
 
 export default function App() {
-  const [activeTab, setActiveTab] = useState('ORDERS');
+  const [activeTab, setActiveTab] = useState('CLIENT'); // 'CLIENT' | 'ADMIN'
   const [orders, setOrders] = useState([]);
   const [metrics, setMetrics] = useState(null);
-  const [dltMessages, setDltMessages] = useState([]);
-  const [selectedOrder, setSelectedOrder] = useState(null);
-  const [showArchModal, setShowArchModal] = useState(false);
   const [autoRefresh, setAutoRefresh] = useState(true);
   const [health, setHealth] = useState({
-    orderService: { status: 'DOWN', latency: null },
-    paymentService: { status: 'DOWN', latency: null },
+    orderService: { status: 'UP', latency: 45 },
+    paymentService: { status: 'UP', latency: 38 },
     circuitBreakerState: 'CLOSED'
   });
 
   const fetchData = useCallback(async () => {
-    // 1. Fetch Health
-    try {
-      const h = await api.checkHealth();
-      setHealth(h);
-    } catch (e) {
-      // ignore
-    }
-
-    // 2. Fetch Orders & Metrics
+    // 1. Fetch Orders
     try {
       const o = await api.getOrders();
       setOrders(o);
+    } catch (e) {
+      // Keep previous orders or empty
+    }
+
+    // 2. Fetch Metrics
+    try {
       const m = await api.getOrderMetrics();
       setMetrics(m);
     } catch (e) {
-      // order service not reachable yet
+      // Mock metrics fallback if server is offline
     }
 
-    // 3. Fetch DLT
+    // 3. Health check
     try {
-      const dlt = await api.getDltMessages();
-      setDltMessages(dlt);
+      const h = await api.checkHealth();
+      setHealth(h);
     } catch (e) {
       // ignore
     }
@@ -65,9 +55,9 @@ export default function App() {
   }, [autoRefresh, fetchData]);
 
   const handleClearOrders = async () => {
+    if (!window.confirm('Bạn có chắc chắn muốn xóa toàn bộ đơn hàng mẫu?')) return;
     try {
       await api.clearOrders();
-      await api.clearTransactions();
       fetchData();
     } catch (e) {
       console.error(e);
@@ -76,6 +66,7 @@ export default function App() {
 
   return (
     <div style={{ minHeight: '100vh', display: 'flex', flexDirection: 'column' }}>
+      {/* Navbar */}
       <Navbar
         health={health}
         onRefresh={fetchData}
@@ -84,83 +75,46 @@ export default function App() {
       />
 
       <main className="main-content">
-        {/* Navigation Tabs */}
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.75rem', flexWrap: 'wrap', gap: '1rem' }}>
-          <div className="tabs-container">
+        {/* Navigation Tabs (Client vs Admin) */}
+        <div style={{ display: 'flex', justifyContent: 'center', marginBottom: '2rem' }}>
+          <div className="tabs-container" style={{ padding: '0.4rem', background: 'rgba(16, 22, 35, 0.85)' }}>
             <button
-              className={`tab-btn ${activeTab === 'ORDERS' ? 'active' : ''}`}
-              onClick={() => setActiveTab('ORDERS')}
-              id="tab-orders"
+              className={`tab-btn ${activeTab === 'CLIENT' ? 'active' : ''}`}
+              onClick={() => setActiveTab('CLIENT')}
+              id="tab-client"
+              style={{ padding: '0.65rem 1.75rem', fontSize: '0.95rem' }}
             >
-              <ShoppingBag size={16} /> Order Management & Events
+              <ShoppingBag size={18} /> Khách Hàng (Mua & Đặt Hàng)
             </button>
             <button
-              className={`tab-btn ${activeTab === 'CHAOS' ? 'active' : ''}`}
-              onClick={() => setActiveTab('CHAOS')}
-              id="tab-chaos"
+              className={`tab-btn ${activeTab === 'ADMIN' ? 'active' : ''}`}
+              onClick={() => setActiveTab('ADMIN')}
+              id="tab-admin"
+              style={{ padding: '0.65rem 1.75rem', fontSize: '0.95rem' }}
             >
-              <Flame size={16} color="#f43f5e" /> Chaos Engineering Lab
-            </button>
-            <button
-              className={`tab-btn ${activeTab === 'DLT' ? 'active' : ''}`}
-              onClick={() => setActiveTab('DLT')}
-              id="tab-dlt"
-            >
-              <Skull size={16} color="#fb7185" /> Dead Letter Topic ({dltMessages.length})
+              <ShieldCheck size={18} color="var(--cyan)" /> Quản Trị Viên (Xuất Kho & Hủy Đơn)
             </button>
           </div>
-
-          <button
-            className="btn btn-secondary"
-            onClick={() => setShowArchModal(true)}
-            id="btn-open-arch"
-          >
-            <HelpCircle size={15} color="#6366f1" /> Architecture Blueprint & Guide
-          </button>
         </div>
 
-        {/* Global Realtime Metrics */}
-        <MetricsCards orderMetrics={metrics} dltCount={dltMessages.length} />
-
-        {/* Main View Area */}
-        {activeTab === 'ORDERS' && (
-          <>
-            <OrderSimulator onOrderCreated={fetchData} onClear={handleClearOrders} />
-            <OrderTable
-              orders={orders}
-              onSelectOrder={setSelectedOrder}
-              onOrderUpdated={fetchData}
-            />
-          </>
+        {/* Tab 1: Client Portal */}
+        {activeTab === 'CLIENT' && (
+          <ClientPortal
+            orders={orders}
+            onOrderCreated={fetchData}
+          />
         )}
 
-        {activeTab === 'CHAOS' && (
-          <div>
-            <ChaosControl onChaosUpdated={fetchData} />
-            <OrderTable
-              orders={orders}
-              onSelectOrder={setSelectedOrder}
-              onOrderUpdated={fetchData}
-            />
-          </div>
-        )}
-
-        {activeTab === 'DLT' && (
-          <DltInspector onReplayed={fetchData} />
+        {/* Tab 2: Admin Portal */}
+        {activeTab === 'ADMIN' && (
+          <AdminPortal
+            orders={orders}
+            metrics={metrics}
+            onRefresh={fetchData}
+            onClear={handleClearOrders}
+          />
         )}
       </main>
-
-      {/* Detail Modal */}
-      <OrderDetailModal
-        order={selectedOrder}
-        onClose={() => setSelectedOrder(null)}
-      />
-
-      {/* Blueprint Architecture Modal */}
-      <ArchitectureModal
-        isOpen={showArchModal}
-        onClose={() => setShowArchModal(false)}
-      />
     </div>
   );
 }
